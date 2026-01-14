@@ -1,0 +1,8 @@
+transformers==4.36.2  # Untuk IndoBERT/IndoBERTweet
+torch==2.1.2          # Backend ML
+pandas==2.1.4         # Data handling
+scikit-learn==1.4.0   # Metrik evaluasi
+numpy==1.26.3         # Array ops
+matplotlib==3.8.2     # Plot confusion matrix
+seaborn==0.13.1       # Heatmap
+discord.py==2.3.2     # Untuk bot deployment (opsional)
