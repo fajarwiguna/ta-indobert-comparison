@@ -10,8 +10,9 @@ from config import BATCH_SIZE, EPOCHS, LR, PATIENCE
 
 def freeze_bert_encoder(model):
     """
-    Freeze encoder IndoBERT
-    Custom slang embedding + classifier tetap dilatih
+    Freeze encoder BERT.
+    Digunakan untuk IndoBERT agar adaptasi bersifat ringan
+    dan konsisten dengan tujuan penelitian.
     """
     for name, param in model.named_parameters():
         if name.startswith("bert"):
@@ -21,10 +22,10 @@ def freeze_bert_encoder(model):
 def train_model(model, train_enc, val_enc, device):
     model.to(device)
 
-    # ===== Freeze IndoBERT Encoder =====
+    # ===== Freeze Encoder (AMAN untuk IndoBERT & IndoBERTweet) =====
     freeze_bert_encoder(model)
 
-    # ===== Dataset & Dataloader =====
+    # ===== Dataset =====
     train_dataset = TensorDataset(
         train_enc["input_ids"],
         train_enc["attention_mask"],
@@ -45,7 +46,8 @@ def train_model(model, train_enc, val_enc, device):
 
     val_loader = DataLoader(
         val_dataset,
-        batch_size=BATCH_SIZE
+        batch_size=BATCH_SIZE,
+        shuffle=False
     )
 
     # ===== Optimizer =====
@@ -81,6 +83,14 @@ def train_model(model, train_enc, val_enc, device):
 
     print("Class weights:", class_weights.detach().cpu().numpy())
 
+    # ===== History untuk Plot =====
+    history = {
+        "train_loss": [],
+        "val_loss": [],
+        "accuracy": [],
+        "f1": []
+    }
+
     # ===== Early Stopping =====
     best_f1 = 0.0
     patience_counter = 0
@@ -101,7 +111,7 @@ def train_model(model, train_enc, val_enc, device):
                 attention_mask=attention_mask
             )
 
-            logits = outputs["logits"]
+            logits = outputs.logits
             loss = criterion(logits, labels)
 
             loss.backward()
@@ -112,6 +122,8 @@ def train_model(model, train_enc, val_enc, device):
             total_loss += loss.item()
 
         avg_train_loss = total_loss / len(train_loader)
+        history["train_loss"].append(avg_train_loss)
+
         print(f"Training Loss: {avg_train_loss:.4f}")
 
         # ===== Validation =====
@@ -130,7 +142,7 @@ def train_model(model, train_enc, val_enc, device):
                     attention_mask=attention_mask
                 )
 
-                logits = outputs["logits"]
+                logits = outputs.logits
                 loss = criterion(logits, labels)
 
                 val_loss += loss.item()
@@ -139,12 +151,16 @@ def train_model(model, train_enc, val_enc, device):
 
         avg_val_loss = val_loss / len(val_loader)
         acc = accuracy_score(golds, preds)
-        f1 = f1_score(golds, preds, average="weighted")
+        f1 = f1_score(golds, preds, average="macro")
+
+        history["val_loss"].append(avg_val_loss)
+        history["accuracy"].append(acc)
+        history["f1"].append(f1)
 
         print(f"Validation Loss: {avg_val_loss:.4f}")
-        print(f"Accuracy: {acc:.4f} | F1-score: {f1:.4f}")
+        print(f"Accuracy: {acc:.4f} | Macro F1-score: {f1:.4f}")
 
-        # ===== Early Stopping Check =====
+        # ===== Early Stopping =====
         if f1 > best_f1:
             best_f1 = f1
             patience_counter = 0
@@ -159,4 +175,5 @@ def train_model(model, train_enc, val_enc, device):
                 break
 
     print("\nTraining selesai (class weighting + transfer learning).")
-    return model
+
+    return model, history
