@@ -1,4 +1,3 @@
-# src/evaluator.py
 import os
 import torch
 import pandas as pd
@@ -72,3 +71,26 @@ def evaluate_model(model, encodings, device='cpu', model_name="model"):
     print(f"Metrik disimpan di: {metrics_path}")
 
     return metrics_df, cm
+
+
+def plot_loss_curve(history, model_name="model"):
+    """
+    Plot Training vs Validation Loss Curve
+    Simpan di folder results/visualizations
+    """
+    os.makedirs('results/visualizations', exist_ok=True)
+
+    plt.figure(figsize=(6,4))
+    plt.plot(history['train_loss'], label='Training Loss', marker='o')
+    plt.plot(history['val_loss'], label='Validation Loss', marker='o')
+    plt.title(f'Training vs Validation Loss - {model_name}')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    path = f'results/visualizations/loss_curve_{model_name.lower().replace(" ", "_")}.png'
+    plt.savefig(path)
+    plt.close()
+    print(f"Loss curve disimpan di: {path}")
