@@ -1,9 +1,12 @@
 import torch
+import numpy as np
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim import AdamW
 from transformers import get_scheduler
 from sklearn.metrics import accuracy_score, f1_score
+from sklearn.utils.class_weight import compute_class_weight
 from config import BATCH_SIZE, EPOCHS, LR, PATIENCE
+
 
 def freeze_bert_encoder(model):
     """
@@ -14,12 +17,14 @@ def freeze_bert_encoder(model):
         if name.startswith("bert"):
             param.requires_grad = False
 
+
 def train_model(model, train_enc, val_enc, device):
     model.to(device)
 
-    # Freeze IndoBERT encoder (transfer learning terkontrol)
+    # ===== Freeze IndoBERT Encoder =====
     freeze_bert_encoder(model)
 
+    # ===== Dataset & Dataloader =====
     train_dataset = TensorDataset(
         train_enc["input_ids"],
         train_enc["attention_mask"],
@@ -32,29 +37,59 @@ def train_model(model, train_enc, val_enc, device):
         val_enc["labels"]
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=True
+    )
 
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=BATCH_SIZE
+    )
+
+    # ===== Optimizer =====
     optimizer = AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
         lr=LR
     )
 
+    # ===== Scheduler =====
     total_steps = EPOCHS * len(train_loader)
     scheduler = get_scheduler(
-        "linear",
+        name="linear",
         optimizer=optimizer,
         num_warmup_steps=int(0.1 * total_steps),
         num_training_steps=total_steps
     )
 
-    best_f1 = 0
+    # ===== CLASS WEIGHTING =====
+    labels_np = train_enc["labels"].cpu().numpy()
+
+    class_weights = compute_class_weight(
+        class_weight="balanced",
+        classes=np.unique(labels_np),
+        y=labels_np
+    )
+
+    class_weights = torch.tensor(
+        class_weights,
+        dtype=torch.float
+    ).to(device)
+
+    criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
+
+    print("Class weights:", class_weights.detach().cpu().numpy())
+
+    # ===== Early Stopping =====
+    best_f1 = 0.0
     patience_counter = 0
 
+    # ===== Training Loop =====
     for epoch in range(EPOCHS):
-        print(f"\n=== Epoch {epoch+1}/{EPOCHS} ===")
+        print(f"\n=== Epoch {epoch + 1}/{EPOCHS} ===")
         model.train()
-        total_loss = 0
+        total_loss = 0.0
 
         for batch in train_loader:
             input_ids, attention_mask, labels = [
@@ -63,13 +98,13 @@ def train_model(model, train_enc, val_enc, device):
 
             outputs = model(
                 input_ids=input_ids,
-                attention_mask=attention_mask,
-                labels=labels
+                attention_mask=attention_mask
             )
 
-            loss = outputs["loss"]
-            loss.backward()
+            logits = outputs["logits"]
+            loss = criterion(logits, labels)
 
+            loss.backward()
             optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
@@ -79,9 +114,9 @@ def train_model(model, train_enc, val_enc, device):
         avg_train_loss = total_loss / len(train_loader)
         print(f"Training Loss: {avg_train_loss:.4f}")
 
-        # ===== VALIDASI =====
+        # ===== Validation =====
         model.eval()
-        val_loss = 0
+        val_loss = 0.0
         preds, golds = [], []
 
         with torch.no_grad():
@@ -92,13 +127,13 @@ def train_model(model, train_enc, val_enc, device):
 
                 outputs = model(
                     input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    labels=labels
+                    attention_mask=attention_mask
                 )
 
-                val_loss += outputs["loss"].item()
                 logits = outputs["logits"]
+                loss = criterion(logits, labels)
 
+                val_loss += loss.item()
                 preds.extend(torch.argmax(logits, dim=1).cpu().numpy())
                 golds.extend(labels.cpu().numpy())
 
@@ -109,7 +144,7 @@ def train_model(model, train_enc, val_enc, device):
         print(f"Validation Loss: {avg_val_loss:.4f}")
         print(f"Accuracy: {acc:.4f} | F1-score: {f1:.4f}")
 
-        # ===== EARLY STOPPING =====
+        # ===== Early Stopping Check =====
         if f1 > best_f1:
             best_f1 = f1
             patience_counter = 0
@@ -123,5 +158,5 @@ def train_model(model, train_enc, val_enc, device):
                 print("Early stopping diaktifkan")
                 break
 
-    print("\nTraining selesai (custom embedding + fine-tuning).")
+    print("\nTraining selesai (class weighting + transfer learning).")
     return model
