@@ -15,18 +15,19 @@ print(f"Using device: {device}")
 full_df = merge_datasets()
 
 all_results = []
+all_histories = {}  # simpan loss curve semua skema
 
-# Untuk menyimpan skema terbaik
 best_f1 = 0
 best_scheme = None
-best_histories = None
 
 for scheme in ["60:40", "70:30", "80:20"]:
 
     print(f"\n===== SKEMA SPLIT {scheme} =====")
 
-    # 2. Stratified Split (Data Preparation)
-    train_df, val_df, test_df = split_data_multi_scheme(full_df, scheme=scheme)
+    # 2. Split Data (DATA PREPARATION)
+    train_df, val_df, test_df = split_data_multi_scheme(
+        full_df, scheme=scheme
+    )
 
     # 3. Tokenization
     train_enc_bert = tokenize_data(train_df, INDOBERT_MODEL, use_slang=True)
@@ -54,6 +55,12 @@ for scheme in ["60:40", "70:30", "80:20"]:
         device
     )
 
+    # simpan semua history
+    all_histories[scheme] = {
+        "bert": history_bert,
+        "tweet": history_tweet
+    }
+
     # 5. Evaluation
     metrics_bert, _ = evaluate_model(
         trained_bert,
@@ -77,23 +84,21 @@ for scheme in ["60:40", "70:30", "80:20"]:
     if current_f1 > best_f1:
         best_f1 = current_f1
         best_scheme = scheme
-        best_histories = {
-            "bert": history_bert,
-            "tweet": history_tweet
-        }
 
-# 7. Plot loss curve HANYA untuk skema terbaik
-print(f"\nMenampilkan loss curve untuk skema terbaik: {best_scheme}")
+# 7. Plot LOSS CURVE SEMUA SKEMA
+print("\n=== MENAMPILKAN LOSS CURVE SEMUA SKEMA ===")
 
-plot_loss_curve(
-    best_histories["bert"],
-    f"IndoBERT + Slang ({best_scheme})"
-)
+for scheme, histories in all_histories.items():
+    plot_loss_curve(
+        histories["bert"],
+        f"IndoBERT + Slang ({scheme})"
+    )
+    plot_loss_curve(
+        histories["tweet"],
+        f"IndoBERTweet ({scheme})"
+    )
 
-plot_loss_curve(
-    best_histories["tweet"],
-    f"IndoBERTweet ({best_scheme})"
-)
+print(f"\nSkema terbaik berdasarkan F1-score: {best_scheme}")
 
 # 8. Simpan hasil komparasi
 comparison_df = pd.concat(all_results, ignore_index=True)
