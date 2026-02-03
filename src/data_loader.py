@@ -151,3 +151,47 @@ def split_data(df):
     train_df, temp_df = train_test_split(df, test_size=TEST_SIZE + VAL_SIZE, random_state=RANDOM_STATE, stratify=df['label'])
     val_df, test_df = train_test_split(temp_df, test_size=VAL_SIZE / (TEST_SIZE + VAL_SIZE), random_state=RANDOM_STATE, stratify=temp_df['label'])
     return train_df, val_df, test_df
+
+def split_data_multi_scheme(df, scheme="80:20"):
+    """
+    Stratified split dengan 3 skema:
+    - 60:40
+    - 70:30
+    - 80:20
+
+    Dari total data:
+    train : val : test = (train_ratio) : (val_ratio) : (test_ratio)
+    dengan val:test = 1:1
+    """
+
+    if scheme == "80:20":
+        train_ratio = 0.8
+    elif scheme == "70:30":
+        train_ratio = 0.7
+    elif scheme == "60:40":
+        train_ratio = 0.6
+    else:
+        raise ValueError("Skema tidak dikenali. Gunakan: 60:40, 70:30, atau 80:20")
+
+    temp_ratio = 1 - train_ratio
+    val_ratio = temp_ratio / 2
+    test_ratio = temp_ratio / 2
+
+    train_df, temp_df = train_test_split(
+        df,
+        test_size=temp_ratio,
+        random_state=RANDOM_STATE,
+        stratify=df["label"]
+    )
+
+    val_df, test_df = train_test_split(
+        temp_df,
+        test_size=0.5,
+        random_state=RANDOM_STATE,
+        stratify=temp_df["label"]
+    )
+
+    print(f"\n[Split {scheme}]")
+    print(f"Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}")
+
+    return train_df, val_df, test_df
