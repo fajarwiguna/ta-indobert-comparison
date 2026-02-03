@@ -79,7 +79,7 @@ for scheme in ["60:40", "70:30", "80:20"]:
     all_results.extend([metrics_bert, metrics_tweet])
 
     # 6. Tentukan skema terbaik (berdasarkan F1 IndoBERTweet)
-    current_f1 = metrics_tweet["f1_score"].values[0]
+    current_f1 = float(metrics_tweet.loc[0, "Macro F1-Score"])
 
     if current_f1 > best_f1:
         best_f1 = current_f1
