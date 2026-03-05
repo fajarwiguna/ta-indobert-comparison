@@ -43,8 +43,8 @@ def evaluate_model(model, encodings, device='cpu', model_name="model"):
     metrics_df = pd.DataFrame({
         'Model': [model_name],
         'Accuracy': [round(accuracy, 4)],
-        'Precision': [round(precision, 4)],
-        'Recall': [round(recall, 4)],
+        'Macro Precision': [round(precision, 4)],
+        'Macro Recall': [round(recall, 4)],
         'Macro F1-Score': [round(f1, 4)]
     })
 
