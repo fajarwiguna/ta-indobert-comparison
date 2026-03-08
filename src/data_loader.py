@@ -191,7 +191,16 @@ def split_data_multi_scheme(df, scheme="80:20"):
         stratify=temp_df["label"]
     )
 
-    print(f"\n[Split {scheme}]")
+
+    # ubah print untuk menampilkan judul sesuai style skripsi
+    if scheme == "80:20":
+        scheme_title = "80:10:10"
+    elif scheme == "70:30":
+        scheme_title = "70:15:15"
+    elif scheme == "60:40":
+        scheme_title = "60:20:20"
+
+    print(f"\n[Split {scheme_title}]")
     print(f"Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}")
 
     return train_df, val_df, test_df
